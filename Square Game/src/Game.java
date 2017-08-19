@@ -12,6 +12,7 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.io.Serializable;
+import java.util.Random;
 
 import javax.imageio.ImageIO;
 import javax.swing.JPanel;
@@ -25,17 +26,22 @@ public class Game extends JPanel implements ActionListener, MouseListener, KeyLi
     private static final long serialVersionUID = 638967204208026612L;
     
     // Integer variables for screen adjustments
-
     private int boxWidth = 60;
     private int boxHeight = 60;
+    
+    private Random randomizer = new Random();
     
     private int stageScore = 0;
     private int totalScore = 0;
     
-    
+    private boolean peekButtonActive;
+    private boolean peekMode;
+    private int amountOfPeeks = 0;
     private int stage = 1;
     private int lives = 3;
     private int gridDimension = 4;
+    private int time = 150;
+    private int timeBonus = 10;
     
     private boolean reset = false;
     private boolean started = true;
@@ -45,6 +51,12 @@ public class Game extends JPanel implements ActionListener, MouseListener, KeyLi
     private AudioPlayer soundX;
     private AudioPlayer soundO;
     private AudioPlayer noContinue;
+    private AudioPlayer peeking;
+    
+    private int stagePosition;
+    private int livesPosition;
+    private int scorePosition;
+    private int timerPosition;
     
     private int[][] scoreMap;
     private boolean[][] negateMap = GameManager.allFalseArray(gridDimension);
@@ -55,12 +67,14 @@ public class Game extends JPanel implements ActionListener, MouseListener, KeyLi
     private BufferedImage o;
     private BufferedImage x;
     private BufferedImage statusBar;
+    private BufferedImage peekPic;
+    private BufferedImage peekPicOff;
     
     private int arrayPositionX;
     private int arrayPositionY;
     
     private int passScore;
-    private GameTime twoMinute;
+    private GameTime gameTimer;
     private Color backgroundColor = new Color(207,207,207);
 
     @SuppressWarnings("unused")
@@ -72,8 +86,7 @@ public class Game extends JPanel implements ActionListener, MouseListener, KeyLi
     private int pointsAvailableY;
     
     public Game() {
-    	//TODO
-        addMouseListener(this);
+    	addMouseListener(this);
         addKeyListener(this);
         setFocusable(true);
         setFocusTraversalKeysEnabled(false);
@@ -83,10 +96,11 @@ public class Game extends JPanel implements ActionListener, MouseListener, KeyLi
         scoreMap = grid.getScoreMap();
         bombMap = grid.getBombMap();
         passScore = GameManager.totalPoints(scoreMap);
-        twoMinute = new GameTime(120);
+        gameTimer = new GameTime(time);
         soundX = new AudioPlayer("src/gameAssets/sounds/xDrop.wav");
         soundO = new AudioPlayer("src/gameAssets/sounds/oDrop.wav");
         noContinue = new AudioPlayer("src/gameAssets/sounds/noContinue.wav");
+        peeking = new AudioPlayer("src/gameAssets/sounds/peeking.wav");
         
         try {
         	statusBar = ImageIO.read(new File("src/gameAssets/essentials/statusBar.png"));
@@ -95,6 +109,8 @@ public class Game extends JPanel implements ActionListener, MouseListener, KeyLi
         	yBar = ImageIO.read(new File("src/gameAssets/essentials/yBar.png"));
         	o = ImageIO.read(new File("src/gameAssets/essentials/o.png"));
         	x = ImageIO.read(new File("src/gameAssets/essentials/x.png"));
+        	peekPic = ImageIO.read(new File("src/gameAssets/essentials/peekPic.png"));
+        	peekPicOff = ImageIO.read(new File("src/gameAssets/essentials/peekPicOff.png"));
         } catch (IOException ex) {
         	System.out.println("some files not found");
         	filesFound = false;
@@ -136,8 +152,25 @@ public class Game extends JPanel implements ActionListener, MouseListener, KeyLi
         // info Boxes and its properties (bottom most and right most boxes)
         // Created from left-bottom/right-top to bottom-right
         for (int coordinate = 20; coordinate <= 420; coordinate = coordinate + 80) {
+        	
             
+        	// Coloring over the white boxes
+            if (peekMode == true) {
+                for (int rowIndex = 0; rowIndex < gridDimension; rowIndex = rowIndex + 1) {
+                	for (int columnIndex = 0; columnIndex < gridDimension; columnIndex = columnIndex + 1) {
+                		g.setColor(new Color(randomizer.nextInt(155) + 100, randomizer.nextInt(155) + 100, randomizer.nextInt(155) + 100));
+                           // The Boxes
+                         g.fillRect(25 + (rowIndex * 80), 25 + (columnIndex * 80) , 48, 48);
+                        }
+                    }
+            }
+
+            // The right Info Bar
+            //g.fillRect(577, 25, 59, 525);
+            // The bottom Info Bar
+            //g.fillRect(27, 573, 592, 34);
             
+        	
         	if (filesFound = false) {
         		// Bottom side info box creation
         		g.setColor(Color.WHITE);
@@ -150,111 +183,133 @@ public class Game extends JPanel implements ActionListener, MouseListener, KeyLi
            
             // main Info box on the right most side of the screen
             g.setColor(Color.BLACK);
-            g.drawImage(statusBar, 660, 10, this); // the status bar, 660, 10
+            g.drawImage(statusBar, 640, 10, this); // the status bar, 660, 10
             
             g.setFont(new Font("serif", Font.BOLD, 25));
            // g.drawString("" + stage, 850, 70);
-            if (stage <= 9) {
-            	g.drawImage(ProjectManager.numberToImage(stage), 850, 70, this);
+            stagePosition = 45;
+            if (9 >= stage) {
+            	g.drawImage(ProjectManager.numberToImage(stage), 870, stagePosition, this);
             } else if (99 >= stage && stage > 9) {
             	StringBuilder string = new StringBuilder();
             	string.append("" + stage);
             	char[] integers = string.toString().toCharArray();
-            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[0])), 850, 70, this);
-            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[1])), 870, 70, this);
+            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[0])), 870, stagePosition, this);
+            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[1])), 890, stagePosition, this);
             } else if (999 >= stage && stage >99) {
             	StringBuilder string = new StringBuilder();
             	string.append("" + stage);
             	char[] integers = string.toString().toCharArray();
-            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[0])), 850, 70, this);
-            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[1])), 870, 70, this);
-            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[2])), 890, 70, this);
+            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[0])), 870, stagePosition, this);
+            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[1])), 890, stagePosition, this);
+            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[2])), 910, stagePosition, this);
             } else if (9999 >= stage && stage > 999) {
             	StringBuilder string = new StringBuilder();
             	string.append("" + stage);
             	char[] integers = string.toString().toCharArray();
-            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[0])), 850, 70, this);
-            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[1])), 870, 70, this);
-            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[2])), 890, 70, this);
-            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[3])), 910, 70, this);
+            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[0])), 870, stagePosition, this);
+            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[1])), 890, stagePosition, this);
+            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[2])), 910, stagePosition, this);
+            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[3])), 930, stagePosition, this);
             }
             
             // drawing the lives
+            livesPosition = 140;
             //g.drawString("" +lives, 850, 200); // lives 870, 200
             if (9 >= lives ) {
-            	g.drawImage(ProjectManager.numberToImage(lives), 850, 175, this);
+            	g.drawImage(ProjectManager.numberToImage(lives), 870, livesPosition, this);
             } else if (99 >= lives && lives > 9) {
             	StringBuilder string = new StringBuilder();
             	string.append("" + lives);
             	char[] integers = string.toString().toCharArray();
-            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[0])), 850, 175, this);
-            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[1])), 870, 175, this);
+            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[0])), 870, livesPosition, this);
+            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[1])), 890, livesPosition, this);
             } else if (999 >= lives && lives >99) {
             	StringBuilder string = new StringBuilder();
             	string.append("" + lives);
             	char[] integers = string.toString().toCharArray();
-            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[0])), 850, 175, this);
-            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[1])), 870, 175, this);
-            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[2])), 890, 175, this);
+            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[0])), 870, livesPosition, this);
+            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[1])), 890, livesPosition, this);
+            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[2])), 910, livesPosition, this);
             } else if (9999 >= lives && lives > 999) {
             	StringBuilder string = new StringBuilder();
             	string.append("" + lives);
             	char[] integers = string.toString().toCharArray();
-            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[0])), 850, 175, this);
-            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[1])), 870, 175, this);
-            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[2])), 890, 175, this);
-            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[3])), 910, 175, this);
+            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[0])), 870, livesPosition, this);
+            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[1])), 890, livesPosition, this);
+            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[2])), 910, livesPosition, this);
+            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[3])), 930, livesPosition, this);
             } else {
             	
             }
             
             // drawing the score
+            scorePosition = 235;
             if (9 >= stageScore ) {
-            	g.drawImage(ProjectManager.numberToImage(stageScore), 850, 280, this);
+            	g.drawImage(ProjectManager.numberToImage(stageScore), 870, scorePosition, this);
             } else if (99 >= stageScore && stageScore > 9) {
             	StringBuilder string = new StringBuilder();
             	string.append("" + stageScore);
             	char[] integers = string.toString().toCharArray();
-            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[0])), 850, 280, this);
-            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[1])), 870, 280, this);
+            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[0])), 870, scorePosition, this);
+            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[1])), 890, scorePosition, this);
             } else if (999 >= stageScore && stageScore > 99) {
             	StringBuilder string = new StringBuilder();
             	string.append("" + stageScore);
             	char[] integers = string.toString().toCharArray();
-            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[0])), 850, 280, this);
-            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[1])), 870, 280, this);
-            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[2])), 890, 280, this);
+            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[0])), 870, scorePosition, this);
+            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[1])), 890, scorePosition, this);
+            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[2])), 910, scorePosition, this);
             } else if (9999 >= stageScore && stageScore > 999) {
             	StringBuilder string = new StringBuilder();
             	string.append("" + stageScore);
             	char[] integers = string.toString().toCharArray();
-            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[0])), 850, 280, this);
-            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[1])), 870, 280, this);
-            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[2])), 890, 280, this);
-            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[3])), 910, 280, this);
+            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[0])), 870, scorePosition, this);
+            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[1])), 890, scorePosition, this);
+            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[2])), 910, scorePosition, this);
+            	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[3])), 930, scorePosition, this);
             }
             
             // The timer
-
-            if(twoMinute.getTimerTime() >= 0) {
-                if (twoMinute.getTimerTime() > 99) {
+            timerPosition = 335;
+            if(gameTimer.getTime() >= 0) {
+            	if (9999 >= gameTimer.getTime() && gameTimer.getTime() >999) {
                 	StringBuilder string = new StringBuilder();
-                	string.append("" + twoMinute.getTimerTime());
+                	string.append("" + gameTimer.getTime());
                 	char[] integers = string.toString().toCharArray();
-                	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[0])), 850, 385, this);
-                	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[1])), 870, 385, this);
-                	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[2])), 890, 385, this);
-                } else if (99 >twoMinute.getTimerTime() && twoMinute.getTimerTime() > 9) {
+                	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[0])), 870, timerPosition, this);
+                	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[1])), 890, timerPosition, this);
+                	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[2])), 910, timerPosition, this);
+                	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[3])), 930, timerPosition, this);
+            	} else if (999 >= gameTimer.getTime() && gameTimer.getTime() > 99) {
                 	StringBuilder string = new StringBuilder();
-                	string.append("" + twoMinute.getTimerTime());
+                	string.append("" + gameTimer.getTime());
                 	char[] integers = string.toString().toCharArray();
-                	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[0])), 850, 385, this);
-                	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[1])), 870, 385, this);
-                } else if (twoMinute.getTimerTime() < 9) {
-                	g.drawImage(ProjectManager.numberToImage(twoMinute.getTimerTime()), 850, 385, this);
+                	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[0])), 870, timerPosition, this);
+                	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[1])), 890, timerPosition, this);
+                	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[2])), 910, timerPosition, this);
+                } else if (99 >= gameTimer.getTime() && gameTimer.getTime() > 9) {
+                	StringBuilder string = new StringBuilder();
+                	string.append("" + gameTimer.getTime());
+                	char[] integers = string.toString().toCharArray();
+                	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[0])), 870, timerPosition, this);
+                	g.drawImage(ProjectManager.numberToImage(Character.getNumericValue(integers[1])), 890, timerPosition, this);
+                } else if (gameTimer.getTime() <= 9) {
+                	g.drawImage(ProjectManager.numberToImage(gameTimer.getTime()), 870, timerPosition, this);
                 }
             } else {
-            	g.drawImage(ProjectManager.numberToImage(0), 850, 385, this);
+            	g.drawImage(ProjectManager.numberToImage(0), 870, timerPosition, this);
+            }
+            
+            //amount of peeks
+            if ((3 >= amountOfPeeks && amountOfPeeks >= 0)) {
+            	g.drawImage(ProjectManager.numberToImage(amountOfPeeks), 870, 430, this);
+            	if (peekButtonActive) {
+            		g.drawImage(peekPic, 930, 440, this);
+            	} else {
+            		g.drawImage(peekPicOff, 930, 440, this);
+            	}
+            	
             }
         }
 
@@ -284,17 +339,17 @@ public class Game extends JPanel implements ActionListener, MouseListener, KeyLi
             	}
             }
         }
-
-        if (lives == 0 || reset == true) {
+        
+        if (lives == 0 || reset == true || gameTimer.getTime() == 0 ) {
             g.setColor(Color.GRAY);
             g.setFont(new Font("Serif", Font.BOLD, 15));
-            g.drawString("Press Enter to restart the game", 720,  515);
+            g.drawString("Press Enter to restart the game", 720,  565);
         }
         
         if (stageScore >= passScore && lives > 0) {
             g.setColor(Color.GRAY);
             g.setFont(new Font("Serif", Font.BOLD, 15));
-            g.drawString("Press Enter to advance to next stage", 720,  515);
+            g.drawString("Press Enter to advance to next stage", 720,  565);
         }
         
         g.dispose();
@@ -302,14 +357,49 @@ public class Game extends JPanel implements ActionListener, MouseListener, KeyLi
 
     public void mousePressed(MouseEvent e) {
         
+    	//System.out.println("The are a total of " + GameManager.totalBombs(bombMap) + " bombs" );
+    	
+    	System.out.println("X value is " + e.getXOnScreen() + " Y Value is :  " + e.getYOnScreen());
+    	
+    	//Allow user to click on bottom most box to advance to next stage
+    	if (e.getX() >= 675 && e.getX() <= 1180 && e.getY() >= 505 && e.getY() <= 600) {
+    		System.out.println("Yoo");
+    		if (stageScore >= passScore && lives > 0) {
+            	this.win();
+    		}
+    		if (lives == 0 || reset == true || gameTimer.getTime() == 0) {
+                this.lose();
+    		}
+    	}
     	
     	// Variables initialize array search at the beginning index
         boolean bombFound = false;
         arrayPositionX = 0;
         arrayPositionY = 0;
         
+        // allows user to hit the button to find a bomb location
+        // Also known as peeking
+        if(e.getX() >= 930 && e.getX() <= 959 && e.getY() >= 440 && e.getY() <=469 && amountOfPeeks <= 3 && peekButtonActive && GameManager.totalBombs(bombMap) >= amountOfPeeks) {
+        	peekMode = true;
+        	System.out.println("You hit the peek!");
+        	peeking.playSound();
+     		while (peekButtonActive == true) {
+     			int x = randomizer.nextInt(gridDimension);
+     			int y = randomizer.nextInt(gridDimension);
+    			if (bombMap[y][x] == true && negateMap[y][x] == false) {
+    				negateMap[y][x] = true;
+    				System.out.println(y + " , " + x + " is a bomb");
+    				amountOfPeeks = amountOfPeeks - 1;
+    				if(amountOfPeeks == 0) {
+    					peekButtonActive = false;
+    				}
+    			}
+    		}
+     		peekMode = false;
+        }
+        
         GTG:
-        	if (lives > 0 && twoMinute.getTimerTime() > 0) {
+        	if (lives > 0 && gameTimer.getTime() >= 0) {
                 // Grid position determines which scans row first then next row top-to-bottom
         		// Only goes through when the user has adequate amount of lives
                 for (int gridPositionY = 20; gridPositionY <= 20 + (gridDimension*100); gridPositionY = gridPositionY + 80 ) {
@@ -342,6 +432,7 @@ public class Game extends JPanel implements ActionListener, MouseListener, KeyLi
                 	}
                 	arrayPositionX = 0;
                 	arrayPositionY = arrayPositionY + 1;
+                	//peekMode = false;
                 }
         	} else {
         		noContinue.playSound();
@@ -353,48 +444,66 @@ public class Game extends JPanel implements ActionListener, MouseListener, KeyLi
     public void keyPressed(KeyEvent e) {
     	
     	//What happens when the user loses the game.
-        if(e.getKeyCode() == KeyEvent.VK_ENTER && (lives == 0 || reset == true)){    
-            grid = new Grid(gridDimension);
-            scoreMap = grid.getScoreMap();
-            negateMap = GameManager.allFalseArray(gridDimension);
-            bombMap = grid.getBombMap();
-            passScore = GameManager.totalPoints(scoreMap);
-            stageScore = 0;
-            totalScore = 0;
-            lives = 3;
-            stage = 1;
-            gridDimension = 4;
-            reset = false;
-            twoMinute.resetTimer(120);
+        if((e.getKeyCode() == KeyEvent.VK_ENTER && (lives == 0 || reset == true))){    
+        	this.lose();
         }
         
         // What happens the user has an adequate amount of points to advance to the next stage
         // adequate score if based on the amount of points available on scoreMap
-        if((e.getKeyCode() == KeyEvent.VK_ENTER && stageScore >= passScore && lives > 0 && twoMinute.getTimerTime() >=0) || e.getKeyCode() == KeyEvent.VK_DELETE){
-        	stageScore = 0;
-        	totalScore = totalScore + stageScore;
-            stage = stage + 1;
-            lives = lives + 2;
-            twoMinute.moreTime();
-            
-            if (stage == 5) {
-            	gridDimension = 5;
-            }
-            
-            if (stage == 7) {
-            	gridDimension = 6;
-            }
-            
-            if(stage == 9) {
-            	gridDimension = 7;
-            }
-            
-            grid = new Grid(gridDimension);
-            scoreMap = grid.getScoreMap();
-            bombMap = grid.getBombMap();
-            negateMap = GameManager.allFalseArray(gridDimension);
-            passScore = GameManager.totalPoints(scoreMap);
+        if((e.getKeyCode() == KeyEvent.VK_ENTER && stageScore >= passScore && lives > 0 && gameTimer.getTime() >=0) || 
+        	   e.getKeyCode() == KeyEvent.VK_DELETE){
+        	this.win();
         }
+    }
+    
+    private void win() {
+    	stageScore = 0;
+    	totalScore = totalScore + stageScore;
+        stage = stage + 1;
+        lives = lives + 2;
+        gameTimer.moreTime(timeBonus);
+        
+        if (stage == 5) {
+        	gridDimension = 5;
+        	timeBonus = 15;
+        }
+        
+        if (stage == 7) {
+        	gridDimension = 6;
+        	timeBonus = 25;
+        }
+        
+        if(stage == 9) {
+        	gridDimension = 7;
+        	timeBonus = 40;
+        }
+        
+        if(stage % 3 == 0 && amountOfPeeks < 3) {
+        	amountOfPeeks = amountOfPeeks + 1;
+        	peekButtonActive = true;
+        	System.out.println("You got a peek");
+        }
+        
+        grid = new Grid(gridDimension);
+        scoreMap = grid.getScoreMap();
+        bombMap = grid.getBombMap();
+        negateMap = GameManager.allFalseArray(gridDimension);
+        passScore = GameManager.totalPoints(scoreMap);
+    }
+    
+    private void lose() {
+        grid = new Grid(gridDimension);
+        scoreMap = grid.getScoreMap();
+        negateMap = GameManager.allFalseArray(gridDimension);
+        bombMap = grid.getBombMap();
+        passScore = GameManager.totalPoints(scoreMap);
+        stageScore = 0;
+        totalScore = 0;
+        lives = 3;
+        stage = 1;
+        gridDimension = 4;
+        gameTimer.resetTimer(time);
+        reset = false;
     }
     
     @Override
@@ -406,24 +515,8 @@ public class Game extends JPanel implements ActionListener, MouseListener, KeyLi
     
     private void resetTime(boolean timer) {
     	if (timer) {
-    		twoMinute.resetTimer(120);
+    		gameTimer.resetTimer(time);
     	}
-    }
-
-    @Override
-    public void mouseReleased(MouseEvent e) {
-    }
-
-    @Override
-    public void mouseEntered(MouseEvent e) {
-    }
-
-    @Override
-    public void mouseExited(MouseEvent e) {
-    }
-
-    @Override
-    public void mouseClicked(MouseEvent e) {
     }
 
     @Override
@@ -433,4 +526,28 @@ public class Game extends JPanel implements ActionListener, MouseListener, KeyLi
     @Override
     public void keyReleased(KeyEvent e) {
     }
+
+	@Override
+	public void mouseClicked(MouseEvent arg0) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void mouseEntered(MouseEvent arg0) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void mouseExited(MouseEvent arg0) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void mouseReleased(MouseEvent arg0) {
+		// TODO Auto-generated method stub
+		
+	}
 }
